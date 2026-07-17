@@ -1,72 +1,89 @@
 # yaml-language-server: $schema=https://json.schemastore.org/github-workflow
-name: Release
+
+name: Build and publish latest release
 
 on:
   push:
     branches:
       - main
-      - "[0-9].[0-9]"
-    tags:
-      - "[0-9].[0-9].[0-9]"
-      - "[0-9].[0-9]-*"
   workflow_dispatch:
 
-# Global allowed scopes for all actions
 permissions:
-  contents: write # to sync branches
-  pull-requests: write # to sync branches
-  checks: write #  to create new checks (coverallsapp/github-action)
+  contents: write
+
+concurrency:
+  group: latest-release
+  cancel-in-progress: true
 
 jobs:
-  checks:
-    uses: ./.github/workflows/checks.yml
-
-  changelog:
-    uses: ./.github/workflows/changelog.yml
-    secrets:
-      MIXXXBOT_CHANGELOG_AUTOUPDATER_PAT: ${{ secrets.MIXXXBOT_CHANGELOG_AUTOUPDATER_PAT }}
-
   build:
+    if: github.repository == 'kemoshumai/kemo-vibe-mixxx'
     uses: ./.github/workflows/build.yml
     with:
-      publish: true
-      branch: ${{ github.head_ref || github.ref_name }}
+      # Keep the build workflow's uploads as GitHub Actions artifacts, but do not
+      # run any of the upstream Mixxx deployment steps.
+      publish: false
+      branch: ${{ github.ref_name }}
       ref: ${{ github.ref }}
-    secrets:
-      AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
-      AZURE_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
-      AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
-      DOWNLOADS_HOSTGATOR_DOT_MIXXX_DOT_ORG_KEY: ${{ secrets.DOWNLOADS_HOSTGATOR_DOT_MIXXX_DOT_ORG_KEY }}
-      DOWNLOADS_HOSTGATOR_DOT_MIXXX_DOT_ORG_KEY_PASSWORD: ${{ secrets.DOWNLOADS_HOSTGATOR_DOT_MIXXX_DOT_ORG_KEY_PASSWORD }}
-      MACOS_CODESIGN_CERTIFICATE_P12_BASE64: ${{ secrets.MACOS_CODESIGN_CERTIFICATE_P12_BASE64 }}
-      MACOS_CODESIGN_CERTIFICATE_PASSWORD: ${{ secrets.MACOS_CODESIGN_CERTIFICATE_PASSWORD }}
-      MACOS_NOTARIZATION_APP_SPECIFIC_PASSWORD: ${{ secrets.MACOS_NOTARIZATION_APP_SPECIFIC_PASSWORD }}
-      ANDROID_SIGNING_KEYSTORE_BASE64: ${{ secrets.ANDROID_SIGNING_KEYSTORE_BASE64 }}
-      ANDROID_SIGNING_PASSWORD: ${{ secrets.ANDROID_SIGNING_PASSWORD }}
-      NETLIFY_BUILD_HOOK: ${{ secrets.NETLIFY_BUILD_HOOK }}
-      RRYAN_AT_MIXXX_DOT_ORG_GPG_PRIVATE_KEY: ${{ secrets.RRYAN_AT_MIXXX_DOT_ORG_GPG_PRIVATE_KEY }}
-
-  benchmark:
-    uses: ./.github/workflows/benchmark.yml
-    with:
-      branch: ${{ github.head_ref || github.ref_name }}
 
   publish:
-    needs:
-      - build
-    uses: ./.github/workflows/flatpak.yml
-    # Flatpak repo only support stable (non-beta tag release), beta and alpha release publication
-    if: ${{ (github.ref_type == 'tag' && !contains('-', github.ref_name)) || github.ref_name == '2.6' || github.ref_name == 'main' }}
-    with:
-      ref: ${{ github.ref }}
-      update_repo: ${{ github.ref_name == 'main' }}
-      run_id: ${{ github.run_id }}
-    secrets:
-      DOWNLOADS_HOSTGATOR_DOT_MIXXX_DOT_ORG_KEY: ${{ secrets.DOWNLOADS_HOSTGATOR_DOT_MIXXX_DOT_ORG_KEY }}
-      RRYAN_AT_MIXXX_DOT_ORG_GPG_PRIVATE_KEY: ${{ secrets.RRYAN_AT_MIXXX_DOT_ORG_GPG_PRIVATE_KEY }}
+    name: Publish GitHub Release
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download all build artifacts
+        uses: actions/download-artifact@v8
+        with:
+          path: release-assets
+          merge-multiple: true
 
-  sync:
-    if: ${{ github.ref_type != 'tag' && github.ref != 'refs/heads/main' && github.repository == 'mixxxdj/mixxx' }}
-    uses: ./.github/workflows/sync_branches.yml
-    secrets:
-      MIXXX_BRANCH_SYNC_PAT: ${{ secrets.MIXXX_BRANCH_SYNC_PAT }}
+      - name: Update rolling release
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: latest
+          RELEASE_TITLE: Latest build
+        run: |
+          set -euo pipefail
+
+          mapfile -d '' assets < <(find release-assets -type f -print0)
+          if (( ${#assets[@]} == 0 )); then
+            echo "No build artifacts were downloaded." >&2
+            exit 1
+          fi
+
+          if gh api "repos/${GITHUB_REPOSITORY}/git/ref/tags/${RELEASE_TAG}" >/dev/null 2>&1; then
+            gh api --method PATCH \
+              "repos/${GITHUB_REPOSITORY}/git/refs/tags/${RELEASE_TAG}" \
+              -f sha="${GITHUB_SHA}" \
+              -F force=true >/dev/null
+          else
+            gh api --method POST \
+              "repos/${GITHUB_REPOSITORY}/git/refs" \
+              -f ref="refs/tags/${RELEASE_TAG}" \
+              -f sha="${GITHUB_SHA}" >/dev/null
+          fi
+
+          if gh release view "${RELEASE_TAG}" >/dev/null 2>&1; then
+            release_id=$(gh api \
+              "repos/${GITHUB_REPOSITORY}/releases/tags/${RELEASE_TAG}" \
+              --jq '.id')
+            while IFS= read -r asset_id; do
+              gh api --method DELETE \
+                "repos/${GITHUB_REPOSITORY}/releases/assets/${asset_id}"
+            done < <(gh api --paginate \
+              "repos/${GITHUB_REPOSITORY}/releases/${release_id}/assets" \
+              --jq '.[].id')
+            gh release edit "${RELEASE_TAG}" \
+              --title "${RELEASE_TITLE}" \
+              --target "${GITHUB_SHA}" \
+              --prerelease=false \
+              --latest
+          else
+            gh release create "${RELEASE_TAG}" \
+              --title "${RELEASE_TITLE}" \
+              --target "${GITHUB_SHA}" \
+              --latest
+          fi
+
+          gh release upload "${RELEASE_TAG}" "${assets[@]}"

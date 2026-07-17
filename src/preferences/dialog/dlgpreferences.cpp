@@ -117,8 +117,10 @@ DlgPreferences::DlgPreferences(
             &DlgPrefLibrary::scanLibrary,
             pLibrary->trackCollectionManager(),
             &TrackCollectionManager::startLibraryScan);
-    addPageWidget(PreferencesPage(plibraryPage,
-                          new QTreeWidgetItem(contentsTreeWidget, QTreeWidgetItem::Type)),
+    m_libraryPage = PreferencesPage(
+            plibraryPage,
+            new QTreeWidgetItem(contentsTreeWidget, QTreeWidgetItem::Type));
+    addPageWidget(m_libraryPage,
             tr("Library"),
             "ic_preferences_library.svg");
 
@@ -319,6 +321,11 @@ void DlgPreferences::showSoundHardwarePage(
     if (tab.has_value()) {
         m_pSoundDlg->selectIOTab(*tab);
     }
+}
+
+void DlgPreferences::showLibraryPage() {
+    switchToPage(m_libraryPage.pTreeItem->text(0), m_libraryPage.pDlg);
+    contentsTreeWidget->setCurrentItem(m_libraryPage.pTreeItem);
 }
 
 bool DlgPreferences::eventFilter(QObject* o, QEvent* e) {

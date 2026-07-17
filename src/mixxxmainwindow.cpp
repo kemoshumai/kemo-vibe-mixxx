@@ -1134,6 +1134,13 @@ void MixxxMainWindow::slotOptionsPreferences() {
     m_pPrefDlg->activateWindow();
 }
 
+void MixxxMainWindow::slotOptionsLibraryPreferences() {
+    m_pPrefDlg->show();
+    m_pPrefDlg->showLibraryPage();
+    m_pPrefDlg->raise();
+    m_pPrefDlg->activateWindow();
+}
+
 void MixxxMainWindow::slotNoVinylControlInputConfigured() {
     if (m_noVinylInputDialog && m_noVinylInputDialog->isVisible()) {
         // Don't show redundant dialogs.
