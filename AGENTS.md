@@ -18,3 +18,12 @@ res/          Resources (controllers/ JS/XML, skins/, qml/)
 cmake/        CMake modules
 tools/        Python helper scripts
 ```
+
+## Local kemo-vibe-mixxx Workflow
+
+- `origin` is the private repository `kemoshumai/kemo-vibe-mixxx` and is the normal destination for commits and pushes.
+- `upstream` is the official `mixxxdj/mixxx` repository. Fetch from it to receive official updates, but never push to it.
+- `origin/main` is the private integration branch. Keep feature work on branches named `feature/<name>` created from `origin/main`.
+- Push feature branches only to `origin`; merge completed work into `main` through the private repository workflow.
+- The local development environment is Windows with Visual Studio 2022 x64. Use the repository's Windows build environment setup before configuring CMake.
+- Do not commit build directories, generated binaries, IDE-specific files, credentials, or other generated artifacts.
