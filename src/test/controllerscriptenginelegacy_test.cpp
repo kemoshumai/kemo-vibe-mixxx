@@ -11,6 +11,8 @@
 #include <QThread>
 #include <QtDebug>
 #include <bit>
+#include <chrono>
+#include <limits>
 #include <memory>
 
 #include "control/controlobject.h"
@@ -120,7 +122,6 @@ class ControllerScriptEngineLegacyTest : public ControllerScriptEngineLegacy,
                 m_pPlayerManager.get(),
                 m_pRecordingManager.get());
 
-        m_pPlayerManager->bindToLibrary(m_pLibrary.get());
         ControllerScriptEngineBase::registerPlayerManager(m_pPlayerManager);
         ControllerScriptEngineBase::registerTrackCollectionManager(m_pTrackCollectionManager);
     }
@@ -187,6 +188,20 @@ class ControllerScriptEngineLegacyTest : public ControllerScriptEngineLegacy,
         application()->processEvents();
     }
 
+    template<typename Predicate>
+    bool waitUntil(Predicate predicate, std::chrono::milliseconds timeout = 5s) {
+        const auto deadline = std::chrono::steady_clock::now() + timeout;
+        do {
+            processEvents();
+            if (predicate()) {
+                return true;
+            }
+            QTest::qWait(10);
+        } while (std::chrono::steady_clock::now() < deadline);
+        processEvents();
+        return predicate();
+    }
+
 #ifdef MIXXX_USE_QML
     QHash<QString, std::shared_ptr<ControllerRenderingEngine>>& renderingScreens() {
         return m_renderingScreens;
@@ -226,7 +241,9 @@ class ControllerScriptEngineLegacyTimerTest : public ControllerScriptEngineLegac
         m_pCo = std::make_unique<ControlPotmeter>(ConfigKey("[Test]", "co"), -10.0, 10.0);
         m_pCo->setParameter(0.0);
         m_pCoTimerId = std::make_unique<ControlPotmeter>(
-                ConfigKey("[Test]", "coTimerId"), -10.0, 50.0);
+                ConfigKey("[Test]", "coTimerId"),
+                -10.0,
+                std::numeric_limits<int>::max());
         m_pCoTimerId->setParameter(0.0);
         EXPECT_TRUE(evaluateAndAssert("engine.setValue('[Test]', 'co', 0.0);"));
         EXPECT_DOUBLE_EQ(0.0, m_pCo->get());
@@ -1400,14 +1417,10 @@ TEST_F(ControllerScriptEngineLegacyTimerTest, beginTimer_repeatedTimer) {
     processEvents();
     EXPECT_DOUBLE_EQ(0.0, m_pCo->get());
 
-    jsEngine()->thread()->msleep(70);
-    processEvents();
-
+    EXPECT_TRUE(waitUntil([this] { return m_pCo->get() >= 1.0; }));
     EXPECT_LE(1.0, m_pCo->get());
 
-    jsEngine()->thread()->msleep(140);
-    processEvents();
-
+    EXPECT_TRUE(waitUntil([this] { return m_pCo->get() >= 2.0; }));
     EXPECT_LE(2.0, m_pCo->get());
 }
 
@@ -1424,9 +1437,7 @@ TEST_F(ControllerScriptEngineLegacyTimerTest, beginTimer_singleShotTimer) {
     processEvents();
     EXPECT_DOUBLE_EQ(0.0, m_pCo->get());
 
-    jsEngine()->thread()->msleep(35);
-    processEvents();
-
+    EXPECT_TRUE(waitUntil([this] { return m_pCo->get() == 1.0; }));
     EXPECT_DOUBLE_EQ(1.0, m_pCo->get());
 }
 
@@ -1445,9 +1456,8 @@ TEST_F(ControllerScriptEngineLegacyTimerTest, beginTimer_singleShotTimerBindFunc
     double timerId = m_pCoTimerId->get();
     EXPECT_TRUE(timerId > 0);
 
-    jsEngine()->thread()->msleep(35);
-    processEvents();
-
+    EXPECT_TRUE(waitUntil(
+            [this, timerId] { return m_pCoTimerId->get() == timerId + 10; }));
     EXPECT_DOUBLE_EQ(timerId + 10, m_pCoTimerId->get());
     EXPECT_DOUBLE_EQ(7.0, m_pCo->get());
     EXPECT_TRUE(evaluateAndAssert("engine.setValue('[Test]', 'co', this.globVar);"));
@@ -1471,9 +1481,8 @@ TEST_F(ControllerScriptEngineLegacyTimerTest, beginTimer_singleShotTimerArrowFun
     double timerId = m_pCoTimerId->get();
     EXPECT_TRUE(timerId > 0);
 
-    jsEngine()->thread()->msleep(35);
-    processEvents();
-
+    EXPECT_TRUE(waitUntil(
+            [this, timerId] { return m_pCoTimerId->get() == timerId + 10; }));
     EXPECT_DOUBLE_EQ(timerId + 10, m_pCoTimerId->get());
     EXPECT_DOUBLE_EQ(7.0, m_pCo->get());
     EXPECT_TRUE(evaluateAndAssert("engine.setValue('[Test]', 'co', this.globVar);"));
@@ -1507,9 +1516,8 @@ TEST_F(ControllerScriptEngineLegacyTimerTest, beginTimer_singleShotTimerBindFunc
     double timerId = m_pCoTimerId->get();
     EXPECT_TRUE(timerId > 0);
 
-    jsEngine()->thread()->msleep(35);
-    processEvents();
-
+    EXPECT_TRUE(waitUntil(
+            [this, timerId] { return m_pCoTimerId->get() == timerId + 10; }));
     EXPECT_DOUBLE_EQ(timerId + 10, m_pCoTimerId->get());
     EXPECT_DOUBLE_EQ(7.0, m_pCo->get());
     EXPECT_TRUE(evaluateAndAssert("engine.setValue('[Test]', 'co', MyMapping.globVar);"));
@@ -1545,9 +1553,8 @@ TEST_F(ControllerScriptEngineLegacyTimerTest, beginTimer_singleShotTimerArrowFun
     double timerId = m_pCoTimerId->get();
     EXPECT_TRUE(timerId > 0);
 
-    jsEngine()->thread()->msleep(35);
-    processEvents();
-
+    EXPECT_TRUE(waitUntil(
+            [this, timerId] { return m_pCoTimerId->get() == timerId + 10; }));
     EXPECT_DOUBLE_EQ(timerId + 10, m_pCoTimerId->get());
     EXPECT_DOUBLE_EQ(7.0, m_pCo->get());
     EXPECT_TRUE(evaluateAndAssert("engine.setValue('[Test]', 'co', MyMapping.globVar);"));
@@ -1584,12 +1591,10 @@ TEST_F(ControllerScriptEngineLegacyTimerTest, beginTimer_repeatedTimerArrowFunct
     double timerId = m_pCoTimerId->get();
     EXPECT_TRUE(timerId > 0);
 
-    jsEngine()->thread()->msleep(35);
-    processEvents();
-
+    EXPECT_TRUE(waitUntil([this] { return m_pCoTimerId->get() == 20.0; }));
     EXPECT_DOUBLE_EQ(20, m_pCoTimerId->get());
 
-    jsEngine()->thread()->msleep(35);
+    QTest::qWait(35);
     processEvents();
 
     EXPECT_DOUBLE_EQ(20, m_pCoTimerId->get());
@@ -1622,12 +1627,10 @@ TEST_F(ControllerScriptEngineLegacyTimerTest, beginTimer_repeatedTimerThisFuncti
     double timerId = m_pCoTimerId->get();
     EXPECT_TRUE(timerId > 0);
 
-    jsEngine()->thread()->msleep(35);
-    processEvents();
-
+    EXPECT_TRUE(waitUntil([this] { return m_pCoTimerId->get() == 20.0; }));
     EXPECT_DOUBLE_EQ(20, m_pCoTimerId->get());
 
-    jsEngine()->thread()->msleep(35);
+    QTest::qWait(35);
     processEvents();
 
     EXPECT_DOUBLE_EQ(20, m_pCoTimerId->get());
