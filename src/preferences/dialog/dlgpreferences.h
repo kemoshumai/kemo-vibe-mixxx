@@ -68,6 +68,7 @@ class DlgPreferences : public QDialog, public Ui::DlgPreferencesDlg {
     void showSoundHardwarePage(
             std::optional<mixxx::preferences::SoundHardwareTab> tab =
                     std::nullopt);
+    void showLibraryPage();
     void slotButtonPressed(QAbstractButton* pButton);
   signals:
     void closeDlg();
@@ -105,6 +106,7 @@ class DlgPreferences : public QDialog, public Ui::DlgPreferencesDlg {
     UserSettingsPointer m_pConfig;
     std::unique_ptr<DlgPrefSound> m_pSoundDlg;
     PreferencesPage m_soundPage;
+    PreferencesPage m_libraryPage;
     DlgPrefControllers* m_pControllersDlg;
 
     QSize m_pageSizeHint;

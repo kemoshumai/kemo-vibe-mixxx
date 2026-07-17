@@ -21,6 +21,7 @@
 #include "library/mixxxlibraryfeature.h"
 #include "library/recording/recordingfeature.h"
 #include "library/rekordbox/rekordboxfeature.h"
+#include "library/releases/releasesfeature.h"
 #include "library/rhythmbox/rhythmboxfeature.h"
 #include "library/serato/seratofeature.h"
 #include "library/sidebarmodel.h"
@@ -145,6 +146,9 @@ Library::Library(
     addFeature(m_pBrowseFeature);
 
     addFeature(new RecordingFeature(this, m_pConfig, pRecordingManager));
+
+    addFeature(new mixxx::library::releases::ReleasesFeature(
+            this, m_pConfig, m_pTrackCollectionManager));
 
     addFeature(new SetlogFeature(this, UserSettingsPointer(m_pConfig)));
 

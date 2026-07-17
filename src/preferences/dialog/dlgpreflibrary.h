@@ -12,6 +12,9 @@
 
 class QWidget;
 class ControlProxy;
+class QCheckBox;
+class QComboBox;
+class QLineEdit;
 
 class DlgPrefLibrary : public DlgPreferencePage, public Ui::DlgPrefLibraryDlg {
     Q_OBJECT
@@ -77,6 +80,7 @@ class DlgPrefLibrary : public DlgPreferencePage, public Ui::DlgPrefLibraryDlg {
     void updateSearchLineEditHistoryOptions();
     void setSeratoMetadataEnabled(bool shouldSyncTrackMetadata);
     void updateDateFormatPreview(const QString& format);
+    void createReleasesControls();
 
     QStandardItemModel m_dirListModel;
     UserSettingsPointer m_pConfig;
@@ -88,4 +92,9 @@ class DlgPrefLibrary : public DlgPreferencePage, public Ui::DlgPrefLibraryDlg {
     parented_ptr<ControlProxy> m_pRateRangeDeck1;
 
     QString m_lastCustomDateFormat;
+    QLineEdit* m_pReleasesDirectoryEdit{nullptr};
+    QLineEdit* m_pReleasesHelperEdit{nullptr};
+    QCheckBox* m_pReleasesCookiesCheck{nullptr};
+    QComboBox* m_pReleasesBrowserCombo{nullptr};
+    QLineEdit* m_pReleasesProfileEdit{nullptr};
 };

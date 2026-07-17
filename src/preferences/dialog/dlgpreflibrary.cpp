@@ -1,11 +1,17 @@
 #include "preferences/dialog/dlgpreflibrary.h"
 
 #include <QApplication>
+#include <QComboBox>
 #include <QDir>
 #include <QFileDialog>
 #include <QFontDialog>
 #include <QFontMetrics>
+#include <QGridLayout>
+#include <QGroupBox>
+#include <QHBoxLayout>
+#include <QLineEdit>
 #include <QMessageBox>
+#include <QPushButton>
 #include <QStandardPaths>
 #include <QUrl>
 #include <QtGlobal>
@@ -16,6 +22,7 @@
 #include "library/dlgtrackmetadataexport.h"
 #include "library/library.h"
 #include "library/library_prefs.h"
+#include "library/releases/releasesprefs.h"
 #include "library/searchquery.h"
 #include "library/trackcollection.h"
 #include "library/trackcollectionmanager.h"
@@ -28,6 +35,7 @@ constexpr int kDefaultFuzzyRateRangePercent = 75;
 } // namespace
 
 using namespace mixxx::library::prefs;
+namespace release_prefs = mixxx::library::releases::prefs;
 
 DlgPrefLibrary::DlgPrefLibrary(
         QWidget* pParent,
@@ -184,6 +192,7 @@ DlgPrefLibrary::DlgPrefLibrary(
             this,
             &DlgPrefLibrary::slotSyncTrackMetadataToggled);
 
+    createReleasesControls();
     setScrollSafeGuardForAllInputWidgets(this);
 
     // Initialize the controls after all slots have been connected
@@ -306,10 +315,29 @@ void DlgPrefLibrary::slotResetToDefaults() {
     checkBox_show_itunes->setChecked(true);
     checkBox_show_traktor->setChecked(true);
     checkBox_show_rekordbox->setChecked(true);
+    m_pReleasesDirectoryEdit->clear();
+    m_pReleasesHelperEdit->clear();
+    m_pReleasesCookiesCheck->setChecked(false);
+    m_pReleasesBrowserCombo->setCurrentIndex(
+            m_pReleasesBrowserCombo->findData(QStringLiteral("chrome")));
+    m_pReleasesProfileEdit->clear();
 }
 
 void DlgPrefLibrary::slotUpdate() {
     populateDirList();
+    m_pReleasesDirectoryEdit->setText(m_pConfig->getValue(
+            release_prefs::kDownloadDirectoryConfigKey, QString()));
+    m_pReleasesHelperEdit->setText(m_pConfig->getValue(
+            release_prefs::kHelperPathConfigKey, QString()));
+    m_pReleasesCookiesCheck->setChecked(m_pConfig->getValue(
+            release_prefs::kUseBrowserCookiesConfigKey, false));
+    const auto browserIndex = m_pReleasesBrowserCombo->findData(m_pConfig->getValue(
+            release_prefs::kCookieBrowserConfigKey, QStringLiteral("chrome")));
+    if (browserIndex >= 0) {
+        m_pReleasesBrowserCombo->setCurrentIndex(browserIndex);
+    }
+    m_pReleasesProfileEdit->setText(m_pConfig->getValue(
+            release_prefs::kCookieProfileConfigKey, QString()));
     checkBox_library_scan->setChecked(m_pConfig->getValue(
             kRescanOnStartupConfigKey, false));
     checkBox_library_scan_summary->setChecked(m_pConfig->getValue(
@@ -614,6 +642,17 @@ void DlgPrefLibrary::slotApply() {
     m_pConfig->set(kUseRelativePathOnExportConfigKey,
             ConfigValue((int)checkBox_use_relative_path->isChecked()));
 
+    m_pConfig->set(release_prefs::kDownloadDirectoryConfigKey,
+            ConfigValue(m_pReleasesDirectoryEdit->text().trimmed()));
+    m_pConfig->set(release_prefs::kHelperPathConfigKey,
+            ConfigValue(m_pReleasesHelperEdit->text().trimmed()));
+    m_pConfig->set(release_prefs::kUseBrowserCookiesConfigKey,
+            ConfigValue(m_pReleasesCookiesCheck->isChecked()));
+    m_pConfig->set(release_prefs::kCookieBrowserConfigKey,
+            ConfigValue(m_pReleasesBrowserCombo->currentData().toString()));
+    m_pConfig->set(release_prefs::kCookieProfileConfigKey,
+            ConfigValue(m_pReleasesProfileEdit->text().trimmed()));
+
     m_pConfig->set(kEnableSearchCompletionsConfigKey,
             ConfigValue(checkBox_enable_search_completions->isChecked()));
     m_pConfig->set(kEnableSearchHistoryShortcutsConfigKey,
@@ -689,6 +728,63 @@ void DlgPrefLibrary::slotApply() {
 
     // TODO(rryan): Don't save here.
     m_pConfig->save();
+}
+
+void DlgPrefLibrary::createReleasesControls() {
+    auto* group = new QGroupBox(tr("releases"), this);
+    auto* layout = new QGridLayout(group);
+    m_pReleasesDirectoryEdit = new QLineEdit(group);
+    auto* directoryButton = new QPushButton(tr("Browse"), group);
+    layout->addWidget(new QLabel(tr("Download directory:"), group), 0, 0);
+    layout->addWidget(m_pReleasesDirectoryEdit, 0, 1);
+    layout->addWidget(directoryButton, 0, 2);
+    m_pReleasesHelperEdit = new QLineEdit(group);
+    auto* helperButton = new QPushButton(tr("Browse"), group);
+    layout->addWidget(new QLabel(tr("Helper executable:"), group), 1, 0);
+    layout->addWidget(m_pReleasesHelperEdit, 1, 1);
+    layout->addWidget(helperButton, 1, 2);
+    m_pReleasesCookiesCheck = new QCheckBox(tr("Use browser cookies"), group);
+    layout->addWidget(m_pReleasesCookiesCheck, 2, 0, 1, 3);
+    m_pReleasesBrowserCombo = new QComboBox(group);
+    const QStringList browsers{QStringLiteral("brave"),
+            QStringLiteral("chrome"),
+            QStringLiteral("chromium"),
+            QStringLiteral("edge"),
+            QStringLiteral("firefox"),
+            QStringLiteral("opera"),
+            QStringLiteral("vivaldi"),
+            QStringLiteral("whale")};
+    for (const auto& browser : browsers) {
+        m_pReleasesBrowserCombo->addItem(browser, browser);
+    }
+    m_pReleasesProfileEdit = new QLineEdit(group);
+    layout->addWidget(new QLabel(tr("Browser:"), group), 3, 0);
+    layout->addWidget(m_pReleasesBrowserCombo, 3, 1);
+    layout->addWidget(new QLabel(tr("Profile:"), group), 4, 0);
+    layout->addWidget(m_pReleasesProfileEdit, 4, 1, 1, 2);
+    verticalLayout->insertWidget(0, group);
+
+    connect(directoryButton, &QPushButton::clicked, this, [this] {
+        const auto directory = QFileDialog::getExistingDirectory(
+                this, tr("Select download directory"), m_pReleasesDirectoryEdit->text());
+        if (!directory.isEmpty()) {
+            m_pReleasesDirectoryEdit->setText(directory);
+        }
+    });
+    connect(helperButton, &QPushButton::clicked, this, [this] {
+        const auto path = QFileDialog::getOpenFileName(
+                this, tr("Select helper executable"), m_pReleasesHelperEdit->text());
+        if (!path.isEmpty()) {
+            m_pReleasesHelperEdit->setText(path);
+        }
+    });
+    const auto updateEnabled = [this] {
+        const auto enabled = m_pReleasesCookiesCheck->isChecked();
+        m_pReleasesBrowserCombo->setEnabled(enabled);
+        m_pReleasesProfileEdit->setEnabled(enabled);
+    };
+    connect(m_pReleasesCookiesCheck, &QCheckBox::toggled, this, updateEnabled);
+    updateEnabled();
 }
 
 void DlgPrefLibrary::slotRowHeightValueChanged(int height) {
