@@ -157,7 +157,7 @@ TEST_F(ReplayGainTest, NormalizePeak) {
     normalizePeak(mixxx::ReplayGain::kPeakClip + mixxx::ReplayGain::kPeakClip);
 }
 
-class AdjustReplayGainTest : public MockedEngineBackendTest {};
+class AdjustReplayGainTest : public BaseSignalPathTest {};
 
 TEST_F(AdjustReplayGainTest, AdjustReplayGainUpdatesPregain) {
     const QString kTrackLocationTest = getTestDir().filePath(QStringLiteral("sine-30.wav"));
