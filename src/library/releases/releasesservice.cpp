@@ -399,8 +399,8 @@ void ReleasesService::slotDownloadFinished(int exitCode, QProcess::ExitStatus st
     if (!m_activeLoads.isEmpty() && !QFileInfo::exists(m_activeMediaPath)) {
         QString directory;
         if (ensureDownloadDirectory(&directory)) {
-            const auto marker = QStringLiteral("[") +
-                    m_activeLoads.constFirst().result.key + QStringLiteral("]");
+            const auto marker = QStringLiteral("[%1]").arg(
+                    m_activeLoads.constFirst().result.key);
             const auto files = QDir(directory).entryInfoList(
                     QDir::Files | QDir::Readable, QDir::Time);
             for (const auto& file : files) {
