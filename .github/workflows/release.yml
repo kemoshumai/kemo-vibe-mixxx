@@ -20,11 +20,7 @@ jobs:
     if: github.repository == 'kemoshumai/kemo-vibe-mixxx'
     uses: ./.github/workflows/build.yml
     with:
-      # Keep the build workflow's uploads as GitHub Actions artifacts, but do not
-      # run any of the upstream Mixxx deployment steps.
-      publish: false
       branch: ${{ github.ref_name }}
-      ref: ${{ github.ref }}
 
   publish:
     name: Publish GitHub Release
