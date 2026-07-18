@@ -902,10 +902,17 @@ void LibraryControl::emitKeyEvent(QKeyEvent&& event) {
         return;
     }
 
-    // Send the event pointer to the currently focused widget
+    auto* activeView = m_pLibraryWidget
+            ? m_pLibraryWidget->getActiveView()
+            : nullptr;
+
+    // Send the event pointer to the active view or currently focused widget
     auto* focusWidget = QApplication::focusWidget();
-    if (focusWidget) {
-        for (auto i = 0; i < event.count(); ++i) {
+    for (auto i = 0; i < event.count(); ++i) {
+        if (activeView && activeView->handleLibraryKeyEvent(&event)) {
+            continue;
+        }
+        if (focusWidget) {
             QApplication::sendEvent(focusWidget, &event);
         }
     }

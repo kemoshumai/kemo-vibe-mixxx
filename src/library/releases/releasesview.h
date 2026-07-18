@@ -64,6 +64,8 @@ class ReleasesView final : public QWidget, public LibraryView {
 
     void onShow() override;
     bool hasFocus() const override;
+    void setFocus() override;
+    bool handleLibraryKeyEvent(QKeyEvent* event) override;
     void onSearch(const QString& text) override;
 
   private slots:
@@ -75,6 +77,8 @@ class ReleasesView final : public QWidget, public LibraryView {
 
   private:
     void applyThemePalette();
+    void focusTableForController();
+    void selectFirstResult();
     void requestLoad(const QString& group = QString());
     void fetchThumbnails(const QList<ReleaseSearchResult>& results);
 
@@ -87,6 +91,7 @@ class ReleasesView final : public QWidget, public LibraryView {
     QLabel* m_pStatusLabel;
     QTableView* m_pTable;
     ReleasesTableModel* m_pModel;
+    bool m_controllerTableFocused{false};
     QNetworkAccessManager m_network;
     QHash<QNetworkReply*, QString> m_thumbnailRequests;
     QHash<QString, QImage> m_thumbnailImages;

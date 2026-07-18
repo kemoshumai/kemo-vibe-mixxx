@@ -2944,6 +2944,7 @@ if(BUILD_TESTING)
     src/test/rangelist_test.cpp
     src/test/readaheadmanager_test.cpp
     src/test/releasesservicetest.cpp
+    src/test/releasesviewtest.cpp
     src/test/replaygaintest.cpp
     src/test/rescalertest.cpp
     src/test/rgbcolor_test.cpp

@@ -5,6 +5,7 @@
 #include <QColor>
 #include <QHBoxLayout>
 #include <QHeaderView>
+#include <QKeyEvent>
 #include <QLabel>
 #include <QLineEdit>
 #include <QMenu>
@@ -261,6 +262,7 @@ ReleasesView::ReleasesView(QWidget* parent,
 
 void ReleasesView::onShow() {
     QTimer::singleShot(0, this, &ReleasesView::applyThemePalette);
+    m_controllerTableFocused = false;
     m_pSearchEdit->setFocus();
 }
 
@@ -335,6 +337,77 @@ bool ReleasesView::hasFocus() const {
     return m_pSearchEdit->hasFocus() || m_pTable->hasFocus();
 }
 
+void ReleasesView::setFocus() {
+    m_controllerTableFocused = true;
+    focusTableForController();
+    if (!m_pSearchEdit->hasFocus()) {
+        m_pTable->setFocus(Qt::OtherFocusReason);
+    }
+}
+
+bool ReleasesView::handleLibraryKeyEvent(QKeyEvent* event) {
+    if (!event || !m_pSearchEdit->hasFocus()) {
+        return false;
+    }
+
+    switch (event->key()) {
+    case Qt::Key_Tab:
+    case Qt::Key_Backtab:
+        setFocus();
+        return true;
+    default:
+        break;
+    }
+
+    if (!m_controllerTableFocused) {
+        return false;
+    }
+
+    switch (event->key()) {
+    case Qt::Key_Up:
+    case Qt::Key_Down:
+    case Qt::Key_Left:
+    case Qt::Key_Right:
+    case Qt::Key_PageUp:
+    case Qt::Key_PageDown:
+    case Qt::Key_Home:
+    case Qt::Key_End:
+        focusTableForController();
+        QApplication::sendEvent(m_pTable, event);
+        return true;
+    default:
+        return false;
+    }
+}
+
+void ReleasesView::focusTableForController() {
+    if (m_pModel->rowCount() == 0) {
+        selectFirstResult();
+        return;
+    }
+
+    auto currentIndex = m_pTable->currentIndex();
+    if (!currentIndex.isValid() || currentIndex.row() >= m_pModel->rowCount()) {
+        currentIndex = m_pModel->index(0, ReleasesTableModel::Title);
+    }
+    m_pTable->setCurrentIndex(currentIndex);
+    m_pTable->selectRow(currentIndex.row());
+    m_pTable->scrollTo(currentIndex);
+}
+
+void ReleasesView::selectFirstResult() {
+    if (m_pModel->rowCount() == 0) {
+        m_pTable->clearSelection();
+        m_pTable->setCurrentIndex(QModelIndex());
+        return;
+    }
+
+    const auto firstIndex = m_pModel->index(0, ReleasesTableModel::Title);
+    m_pTable->setCurrentIndex(firstIndex);
+    m_pTable->selectRow(0);
+    m_pTable->scrollTo(firstIndex);
+}
+
 void ReleasesView::onSearch(const QString& text) {
     m_pSearchEdit->setText(text);
     if (!text.isEmpty()) {
@@ -356,6 +429,7 @@ void ReleasesView::slotSearchFinished(const QList<ReleaseSearchResult>& results)
         result.cached = m_pService->isCached(result.key);
     }
     m_pModel->setResults(hydratedResults);
+    selectFirstResult();
     m_pStatusLabel->setText(tr("%1 results").arg(hydratedResults.size()));
     fetchThumbnails(hydratedResults);
 }
