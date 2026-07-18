@@ -65,6 +65,7 @@ class ReleasesView final : public QWidget, public LibraryView {
     void onShow() override;
     bool hasFocus() const override;
     void setFocus() override;
+    bool loadSelectedTrackToGroup(const QString& group, bool play) override;
     bool handleLibraryKeyEvent(QKeyEvent* event) override;
     void onSearch(const QString& text) override;
 
@@ -79,7 +80,7 @@ class ReleasesView final : public QWidget, public LibraryView {
     void applyThemePalette();
     void focusTableForController();
     void selectFirstResult();
-    void requestLoad(const QString& group = QString());
+    bool requestLoad(const QString& group = QString(), bool play = false);
     void fetchThumbnails(const QList<ReleaseSearchResult>& results);
 
     UserSettingsPointer m_pConfig;

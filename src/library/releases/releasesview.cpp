@@ -345,6 +345,10 @@ void ReleasesView::setFocus() {
     }
 }
 
+bool ReleasesView::loadSelectedTrackToGroup(const QString& group, bool play) {
+    return requestLoad(group, play);
+}
+
 bool ReleasesView::handleLibraryKeyEvent(QKeyEvent* event) {
     if (!event || !m_pSearchEdit->hasFocus()) {
         return false;
@@ -476,13 +480,14 @@ void ReleasesView::slotThumbnailFinished() {
     reply->deleteLater();
 }
 
-void ReleasesView::requestLoad(const QString& group) {
+bool ReleasesView::requestLoad(const QString& group, bool play) {
     const auto index = m_pTable->currentIndex();
     const auto result = m_pModel->resultAt(index);
     if (result.key.isEmpty()) {
-        return;
+        return false;
     }
-    m_pService->requestLoad(result, group, false);
+    m_pService->requestLoad(result, group, play);
+    return true;
 }
 
 void ReleasesView::slotContextMenu(const QPoint& position) {

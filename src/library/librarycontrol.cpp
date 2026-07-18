@@ -651,6 +651,11 @@ void LibraryControl::slotLoadSelectedTrackToGroup(const QString& group, bool pla
         return;
     }
 
+    auto* activeView = m_pLibraryWidget->getActiveView();
+    if (activeView && activeView->loadSelectedTrackToGroup(group, play)) {
+        return;
+    }
+
     WTrackTableView* pTrackTableView = m_pLibraryWidget->getCurrentTrackTableView();
     if (pTrackTableView) {
 #ifdef __STEM__
