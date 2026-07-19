@@ -1461,16 +1461,16 @@ void WTrackTableView::activateSelectedTrack() {
 }
 
 #ifdef __STEM__
-void WTrackTableView::loadSelectedTrackToGroup(const QString& group,
+bool WTrackTableView::loadSelectedTrackToGroup(const QString& group,
         mixxx::StemChannelSelection stemMask,
         bool play) {
 #else
-void WTrackTableView::loadSelectedTrackToGroup(const QString& group,
+bool WTrackTableView::loadSelectedTrackToGroup(const QString& group,
         bool play) {
 #endif
     const QModelIndexList indices = getSelectedRows();
     if (indices.isEmpty()) {
-        return;
+        return false;
     }
     bool allowLoadTrackIntoPlayingDeck = false;
     if (m_pConfig->exists(kConfigKeyLoadWhenDeckPlaying)) {
@@ -1495,7 +1495,7 @@ void WTrackTableView::loadSelectedTrackToGroup(const QString& group,
     if (!allowLoadTrackIntoPlayingDeck &&
             !PlayerManager::isPreviewDeckGroup(group) &&
             ControlObject::get(ConfigKey(group, "play")) > 0.0) {
-        return;
+        return true;
     }
     auto index = indices.at(0);
     auto* pTrackModel = getTrackModel();
@@ -1508,6 +1508,7 @@ void WTrackTableView::loadSelectedTrackToGroup(const QString& group,
         emit loadTrackToPlayer(pTrack, group, play);
 #endif
     }
+    return true;
 }
 
 QList<TrackId> WTrackTableView::getSelectedTrackIds() const {

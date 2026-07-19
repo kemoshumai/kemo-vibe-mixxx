@@ -45,13 +45,13 @@ class WTrackTableView : public WLibraryTableView {
     void resizeEvent(QResizeEvent* event) override;
     void editSelectedItem();
     void activateSelectedTrack();
+    using LibraryView::loadSelectedTrackToGroup;
 #ifdef __STEM__
-    void loadSelectedTrackToGroup(const QString& group,
+    bool loadSelectedTrackToGroup(const QString& group,
             mixxx::StemChannelSelection stemMask,
             bool play);
 #else
-    void loadSelectedTrackToGroup(const QString& group,
-            bool play);
+    bool loadSelectedTrackToGroup(const QString& group, bool play) override;
 #endif
     void assignNextTrackColor() override;
     void assignPreviousTrackColor() override;
