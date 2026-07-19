@@ -880,6 +880,11 @@ void WMainMenuBar::showMenuBar() {
     // Workaround: reselect the active action after unhiding. It can be none,
     // user-requested (hotkey) or auto-selected (first menu's first action).
     QAction* pAct = activeAction();
+    // hideMenuBar() uses setFixedHeight(0), which sets both the minimum and
+    // maximum height to zero. Restore the maximum before raising the minimum;
+    // otherwise Qt's debug build asserts because minimumHeight would briefly
+    // exceed maximumHeight.
+    setMaximumHeight(QWIDGETSIZE_MAX);
     setMinimumHeight(sizeHint().height());
     // If there was a menu selected before, reselect that.
     // Note: with nullptr this would be a no-op. Though, even if no menu is

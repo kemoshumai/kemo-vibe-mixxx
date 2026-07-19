@@ -13,11 +13,17 @@ class TrackCollectionManager;
 
 namespace mixxx::library::releases {
 
+enum class ReleaseProvider {
+    YouTube,
+    Bandcamp,
+};
+
 struct ReleaseSearchResult {
     QString key;
     QString title;
     QString uploader;
     QString webpageUrl;
+    QString album;
     QString thumbnailUrl;
     QString thumbnailPath;
     qint64 durationSeconds{0};
@@ -25,6 +31,7 @@ struct ReleaseSearchResult {
     int progress{-1};
     QString status;
     bool cached{false};
+    ReleaseProvider provider{ReleaseProvider::YouTube};
 };
 
 class ReleasesService final : public QObject {
@@ -32,7 +39,10 @@ class ReleasesService final : public QObject {
   public:
     ReleasesService(QObject* parent,
             UserSettingsPointer config,
-            TrackCollectionManager* trackCollectionManager);
+            TrackCollectionManager* trackCollectionManager,
+            ReleaseProvider provider = ReleaseProvider::YouTube,
+            ConfigKey downloadDirectoryConfigKey = {},
+            QString catalogName = QStringLiteral("releases"));
     ~ReleasesService() override;
 
     void search(const QString& query, bool musicOnly);
@@ -87,6 +97,8 @@ class ReleasesService final : public QObject {
     UserSettingsPointer m_pConfig;
     TrackCollectionManager* const m_pTrackCollectionManager;
     ReleasesCatalog m_catalog;
+    const ReleaseProvider m_provider;
+    const ConfigKey m_downloadDirectoryConfigKey;
     QProcess m_process;
     Operation m_operation{Operation::None};
     QByteArray m_processOutput;

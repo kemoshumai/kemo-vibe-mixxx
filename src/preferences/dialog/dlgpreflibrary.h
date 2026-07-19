@@ -93,6 +93,7 @@ class DlgPrefLibrary : public DlgPreferencePage, public Ui::DlgPrefLibraryDlg {
 
     QString m_lastCustomDateFormat;
     QLineEdit* m_pReleasesDirectoryEdit{nullptr};
+    QLineEdit* m_pBandcampDirectoryEdit{nullptr};
     QLineEdit* m_pReleasesHelperEdit{nullptr};
     QCheckBox* m_pReleasesCookiesCheck{nullptr};
     QComboBox* m_pReleasesBrowserCombo{nullptr};

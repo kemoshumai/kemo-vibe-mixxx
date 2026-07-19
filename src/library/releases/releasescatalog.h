@@ -24,7 +24,8 @@ struct ReleaseRecord {
 
 class ReleasesCatalog final {
   public:
-    explicit ReleasesCatalog(const QString& settingsPath);
+    explicit ReleasesCatalog(const QString& settingsPath,
+            QString catalogName = QStringLiteral("releases"));
 
     bool load();
     bool save() const;
