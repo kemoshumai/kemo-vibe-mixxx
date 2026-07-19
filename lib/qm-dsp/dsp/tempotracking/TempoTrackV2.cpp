@@ -15,6 +15,7 @@
 
 #include "TempoTrackV2.h"
 
+#include <algorithm>
 #include <cmath>
 #include <cstdlib>
 #include <iostream>
@@ -152,21 +153,20 @@ TempoTrackV2::calculateBeatPeriod(const vector<double> &df,
 
     // Loop over the onset detection function half a window padding on both ends
     for (int i = -winlen / 2; i < df_len - winlen / 2; i += hopsize) {
-        int k = 0;
-        int l = winlen;
-
-        if (i < 0) {
-            k = -i;
-            std::fill(dfframe.begin(), dfframe.begin() + k, 0.0);
+        // Pad the part of the analysis window outside df with zeroes. Derive
+        // every iterator from clamped source and destination indexes. The old
+        // k/l calculation could form an iterator before df.begin() for the
+        // final partial window of some tracks, which trips MSVC's checked STL.
+        std::fill(dfframe.begin(), dfframe.end(), 0.0);
+        const int sourceBegin = std::clamp(i, 0, df_len);
+        const int sourceEnd = std::clamp(i + winlen, sourceBegin, df_len);
+        const int destinationBegin = sourceBegin - i;
+        const int copyLength = sourceEnd - sourceBegin;
+        if (copyLength > 0) {
+            std::copy_n(df.cbegin() + sourceBegin,
+                    copyLength,
+                    dfframe.begin() + destinationBegin);
         }
-
-        if (i + l > df_len) {
-            l = df_len - i;
-            std::fill(dfframe.begin() + l, dfframe.end(), 0.0);
-        }
-        
-        std::copy(df.begin() + i + k, df.begin() + i + l,
-                      dfframe.begin() + k);
 
         // Apply the resonator comb filter (RCF) bank to the window
         // The result is a vector of filter responses for different periods.
@@ -412,7 +412,12 @@ TempoTrackV2::calculateBeats(const vector<double> &df,
         // or grove or intended abrupt tempo changes. It may follow a previous
         // dominant even if we are in a new tempo window with lower onsets.
 
-        int period = beat_period[i/128];
+        // The period path is produced in 128-frame hops. Keep this routine
+        // safe for incomplete paths too, since decoding short or malformed
+        // input may leave fewer usable entries than the detection function.
+        const auto periodIndex = std::min(
+                static_cast<std::size_t>(i / 128), beat_period.size() - 1);
+        const int period = std::max(1, beat_period[periodIndex]);
         int prange_min = period * -2;
         if (period != old_period)  {
             old_period = period;
@@ -452,12 +457,15 @@ TempoTrackV2::calculateBeats(const vector<double> &df,
 
     // STARTING POINT, I.E. LAST BEAT.. PICK A STRONG POINT IN cumscore VECTOR
     d_vec_t tmp_vec;
-    for (int i = df_len - beat_period[beat_period.size()-1] ; i < df_len; i++) {
-        tmp_vec.push_back(cumscore[i]);
-    }
+    // A period estimate can be longer than the available detection function
+    // (for example when a short or otherwise sparse track produces only a
+    // small number of valid frames). Clamp the start index so that the
+    // iterator-backed vector access never seeks before begin().
+    const int lastPeriod = std::clamp(beat_period.back(), 1, df_len);
+    const int startIndex = df_len - lastPeriod;
+    tmp_vec.assign(cumscore.cbegin() + startIndex, cumscore.cend());
 
-    int startpoint = get_max_ind(tmp_vec) +
-        df_len - beat_period[beat_period.size()-1] ;
+    int startpoint = get_max_ind(tmp_vec) + startIndex;
 
     // can happen if no results obtained earlier (e.g. input too short)
     if (startpoint >= int(backlink.size())) {

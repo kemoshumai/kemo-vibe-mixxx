@@ -1462,6 +1462,9 @@ add_library(
   src/library/releases/releasesprefs.cpp
   src/library/releases/releasesservice.cpp
   src/library/releases/releasesview.cpp
+  src/library/releasescamp/bandcampfeature.cpp
+  src/library/releasescamp/bandcampservice.cpp
+  src/library/releasescamp/bandcampview.cpp
   src/library/rekordbox/rekordboxfeature.cpp
   src/library/rhythmbox/rhythmboxfeature.cpp
   src/library/scanner/importfilestask.cpp
@@ -2944,6 +2947,7 @@ if(BUILD_TESTING)
     src/test/rangelist_test.cpp
     src/test/readaheadmanager_test.cpp
     src/test/releasesservicetest.cpp
+    src/test/bandcampservicetest.cpp
     src/test/releasesviewtest.cpp
     src/test/replaygaintest.cpp
     src/test/rescalertest.cpp

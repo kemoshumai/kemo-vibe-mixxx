@@ -30,9 +30,10 @@ ReleaseRecord ReleaseRecord::fromJson(const QJsonObject& object) {
     return record;
 }
 
-ReleasesCatalog::ReleasesCatalog(const QString& settingsPath)
-        : m_filePath(QDir(settingsPath).filePath(QStringLiteral("releases-index.json"))),
-          m_thumbnailDirectory(QDir(settingsPath).filePath(QStringLiteral("releases-thumbnails"))) {
+ReleasesCatalog::ReleasesCatalog(const QString& settingsPath, QString catalogName)
+        : m_filePath(QDir(settingsPath).filePath(catalogName + QStringLiteral("-index.json"))),
+          m_thumbnailDirectory(
+                  QDir(settingsPath).filePath(catalogName + QStringLiteral("-thumbnails"))) {
 }
 
 bool ReleasesCatalog::load() {

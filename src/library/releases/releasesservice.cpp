@@ -71,11 +71,16 @@ QString searchErrorDetail(const QByteArray& output) {
 
 ReleasesService::ReleasesService(QObject* parent,
         UserSettingsPointer config,
-        TrackCollectionManager* trackCollectionManager)
+        TrackCollectionManager* trackCollectionManager,
+        ReleaseProvider provider,
+        ConfigKey downloadDirectoryConfigKey,
+        QString catalogName)
         : QObject(parent),
           m_pConfig(std::move(config)),
           m_pTrackCollectionManager(trackCollectionManager),
-          m_catalog(m_pConfig->getSettingsPath()) {
+          m_catalog(m_pConfig->getSettingsPath(), std::move(catalogName)),
+          m_provider(provider),
+          m_downloadDirectoryConfigKey(std::move(downloadDirectoryConfigKey)) {
     m_catalog.load();
     connect(&m_process,
             &QProcess::readyReadStandardOutput,
@@ -262,12 +267,18 @@ void ReleasesService::slotSearchFinished(int exitCode, QProcess::ExitStatus stat
 }
 
 bool ReleasesService::ensureDownloadDirectory(QString* path) {
-    auto directory = m_pConfig->getValueString(prefs::kDownloadDirectoryConfigKey);
+    const auto& directoryKey = m_downloadDirectoryConfigKey.isValid()
+            ? m_downloadDirectoryConfigKey
+            : prefs::kDownloadDirectoryConfigKey;
+    auto directory = m_pConfig->getValueString(directoryKey);
     if (directory.isEmpty()) {
+        const auto defaultDirectoryName = m_provider == ReleaseProvider::Bandcamp
+                ? QStringLiteral("Releases Camp")
+                : QStringLiteral("Releases");
         directory = QStandardPaths::writableLocation(QStandardPaths::MusicLocation) +
-                QStringLiteral("/Mixxx/Releases");
+                QStringLiteral("/Mixxx/") + defaultDirectoryName;
         if (directory.startsWith(QStringLiteral("/Mixxx"))) {
-            directory = QDir(m_pConfig->getSettingsPath()).filePath(QStringLiteral("Releases"));
+            directory = QDir(m_pConfig->getSettingsPath()).filePath(defaultDirectoryName);
         }
     }
     QDir dir(directory);
@@ -338,8 +349,6 @@ void ReleasesService::startDownload(const PendingLoad& request) {
             QStringLiteral("utf-8"),
             QStringLiteral("--no-playlist"),
             QStringLiteral("--no-overwrites"),
-            QStringLiteral("--extractor-args"),
-            QStringLiteral("youtube:player_client=android"),
             QStringLiteral("--format"),
             QStringLiteral("bestaudio/best"),
             QStringLiteral("--paths"),
@@ -354,6 +363,11 @@ void ReleasesService::startDownload(const PendingLoad& request) {
                            "%(progress.total_bytes_estimate)s"),
             QStringLiteral("--print"),
             QStringLiteral("after_move:RELEASES_COMPLETE\t%(id)s\t%(filepath)s")};
+    if (m_provider == ReleaseProvider::YouTube) {
+        const auto formatIndex = arguments.indexOf(QStringLiteral("--format"));
+        arguments.insert(formatIndex, QStringLiteral("--extractor-args"));
+        arguments.insert(formatIndex + 1, QStringLiteral("youtube:player_client=android"));
+    }
     arguments.append(cookieArguments());
     arguments.append(request.result.webpageUrl);
     m_process.start(helper, arguments);
@@ -496,6 +510,9 @@ TrackPointer ReleasesService::trackForRecord(const ReleaseSearchResult& result,
     }
     if (!result.uploader.isEmpty()) {
         track->setArtist(result.uploader);
+    }
+    if (!result.album.isEmpty()) {
+        track->setAlbum(result.album);
     }
     track->setURL(result.webpageUrl);
     m_pTrackCollectionManager->saveTrack(track);

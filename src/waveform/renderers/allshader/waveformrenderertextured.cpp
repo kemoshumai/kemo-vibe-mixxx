@@ -4,6 +4,7 @@
 
 #include <QOpenGLFramebufferObject>
 #include <QOpenGLShaderProgram>
+#include <algorithm>
 
 #include "moc_waveformrenderertextured.cpp"
 #include "track/track.h"
@@ -140,7 +141,9 @@ bool WaveformRendererTextured::loadTexture() {
         if (m_data.size() == 0 || static_cast<int>(m_data.size()) != pWaveform->getTextureSize()) {
             m_data.resize(pWaveform->getTextureSize());
         }
-        for (int i = 0; i < pWaveform->getDataSize(); i++) {
+        const int copySize = std::min(pWaveform->getDataSize(),
+                pWaveform->getTextureSize());
+        for (int i = 0; i < copySize; i++) {
             m_data[i] = data[i].filtered;
         }
         // Waveform ensures that getTextureSize is a multiple of
@@ -158,7 +161,7 @@ bool WaveformRendererTextured::loadTexture() {
                 GL_UNSIGNED_BYTE,
                 m_data.data());
         int error = glGetError();
-        VERIFY_OR_DEBUG_ASSERT(!error) {
+        if (error != GL_NO_ERROR) {
             qWarning() << "WaveformRendererTextured::loadTexture - glTexImage2D error" << error;
         }
     } else {
@@ -279,7 +282,11 @@ void WaveformRendererTextured::slotWaveformUpdated() {
     if (!m_frameShaderProgram) {
         return;
     }
-    loadTexture();
+    // waveformUpdated can be emitted by an analyzer thread while no OpenGL
+    // context is current on this object. Uploading the texture here therefore
+    // produces GL_INVALID_OPERATION and, in debug builds, stops Mixxx in the
+    // middle of loading a track. paintGL() runs with the widget's context
+    // current and will upload the new data on its next frame.
 }
 
 void WaveformRendererTextured::paintGL() {
