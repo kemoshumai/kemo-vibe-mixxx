@@ -184,7 +184,9 @@ ReleasesView::ReleasesView(QWidget* parent,
     m_pSearchEdit = new QLineEdit(this);
     m_pSearchEdit->setPlaceholderText(tr("Search"));
     m_pMusicOnly = new QCheckBox(tr("Music only"), this);
+    m_pMusicOnly->setObjectName(QStringLiteral("ReleasesMusicOnlyCheckBox"));
     m_pMusicOnly->setChecked(true);
+    m_pMusicOnly->setVisible(m_pService->provider() != ReleaseProvider::SoundCloud);
     m_pSearchButton = new QPushButton(tr("Search"), this);
     m_pSettingsButton = new QPushButton(tr("Settings"), this);
     controls->addWidget(m_pSearchEdit, 1);

@@ -12,6 +12,7 @@
 #include <QProcessEnvironment>
 #include <QStandardPaths>
 #include <QUrl>
+#include <array>
 
 #include "library/releases/releasesprefs.h"
 #include "library/trackcollectionmanager.h"
@@ -37,7 +38,40 @@ QString firstString(const QJsonObject& object, std::initializer_list<const char*
     return {};
 }
 
-QString thumbnailUrl(const QJsonObject& object) {
+QString largestThumbnailUrl(const QJsonObject& object) {
+    QString result;
+    bool resultIsOriginal = false;
+    qint64 resultArea = -1;
+    int resultPreference = -1;
+    for (const auto& value : object.value(QStringLiteral("thumbnails")).toArray()) {
+        const auto thumbnail = value.toObject();
+        const auto url = thumbnail.value(QStringLiteral("url")).toString();
+        if (url.isEmpty()) {
+            continue;
+        }
+        const auto isOriginal =
+                thumbnail.value(QStringLiteral("id")).toString() == QStringLiteral("original");
+        const auto width = thumbnail.value(QStringLiteral("width")).toInteger();
+        const auto height = thumbnail.value(QStringLiteral("height")).toInteger();
+        const auto area = width > 0 && height > 0 ? width * height : -1;
+        const auto preference = thumbnail.value(QStringLiteral("preference")).toInt(-1);
+        if (result.isEmpty() ||
+                (isOriginal && !resultIsOriginal) ||
+                (isOriginal == resultIsOriginal && area > resultArea) ||
+                (isOriginal == resultIsOriginal && area == resultArea &&
+                        preference >= resultPreference)) {
+            result = url;
+            resultIsOriginal = isOriginal;
+            resultArea = area;
+            resultPreference = preference;
+        }
+    }
+    return result.isEmpty()
+            ? object.value(QStringLiteral("thumbnail")).toString()
+            : result;
+}
+
+QString lastThumbnailUrl(const QJsonObject& object) {
     QString result;
     for (const auto& value : object.value(QStringLiteral("thumbnails")).toArray()) {
         const auto url = value.toObject().value(QStringLiteral("url")).toString();
@@ -46,6 +80,38 @@ QString thumbnailUrl(const QJsonObject& object) {
         }
     }
     return result;
+}
+
+QString soundCloudWebpageUrl(const QJsonObject& object) {
+    constexpr std::array<const char*, 4> kUrlFields{
+            "webpage_url", "permalink_url", "original_url", "url"};
+    for (const auto* field : kUrlFields) {
+        QUrl url(object.value(QString::fromLatin1(field)).toString());
+        const auto scheme = url.scheme().toLower();
+        const auto host = url.host().toLower();
+        if (!url.isValid() ||
+                (scheme != QStringLiteral("http") &&
+                        scheme != QStringLiteral("https")) ||
+                (host != QStringLiteral("soundcloud.com") &&
+                        host != QStringLiteral("www.soundcloud.com") &&
+                        host != QStringLiteral("m.soundcloud.com")) ||
+                url.path().split(QChar('/'), Qt::SkipEmptyParts).size() != 2) {
+            continue;
+        }
+        url.setScheme(QStringLiteral("https"));
+        url.setHost(QStringLiteral("soundcloud.com"));
+        url.setPort(-1);
+        url.setUserInfo(QString());
+        url.setQuery(QString());
+        url.setFragment(QString());
+        auto path = url.path();
+        while (path.endsWith(QChar('/'))) {
+            path.chop(1);
+        }
+        url.setPath(path);
+        return url.toString(QUrl::FullyEncoded);
+    }
+    return {};
 }
 
 QString searchErrorDetail(const QByteArray& output) {
@@ -106,6 +172,67 @@ ReleasesService::~ReleasesService() {
     cancel();
 }
 
+ReleaseCommandPolicy ReleasesService::commandPolicy(ReleaseProvider provider) {
+    switch (provider) {
+    case ReleaseProvider::SoundCloud:
+        return {
+                QStringLiteral("scsearch%1").arg(kSearchLimit),
+                QStringLiteral(
+                        "bestaudio[protocol=m3u8_native][acodec^=mp4a]"
+                        "[abr=160][format_note!=?Premium][format_id!$=preview]/"
+                        "bestaudio[protocol=m3u8_native][acodec^=mp4a]"
+                        "[abr=96][format_note!=?Premium][format_id!$=preview]"),
+                QStringLiteral("soundcloud:formats=hls_aac"),
+                QStringLiteral("Releases SC"),
+                false,
+                false,
+        };
+    case ReleaseProvider::Bandcamp:
+        return {
+                QStringLiteral("ytsearch%1").arg(kSearchLimit),
+                QStringLiteral("bestaudio/best"),
+                {},
+                QStringLiteral("Releases Camp"),
+                true,
+                true,
+        };
+    case ReleaseProvider::YouTube:
+        return {
+                QStringLiteral("ytsearch%1").arg(kSearchLimit),
+                QStringLiteral("bestaudio/best"),
+                QStringLiteral("youtube:player_client=android"),
+                QStringLiteral("Releases"),
+                true,
+                true,
+        };
+    }
+    return {};
+}
+
+QString ReleasesService::searchInput(ReleaseProvider provider,
+        const QString& query,
+        bool musicOnly) {
+    const auto policy = commandPolicy(provider);
+    const auto searchTerms = musicOnly && policy.appendMusicKeyword
+            ? query + QStringLiteral(" music")
+            : query;
+    return policy.searchPrefix + QChar(':') + searchTerms;
+}
+
+QStringList ReleasesService::browserCookieArguments(ReleaseProvider provider,
+        bool enabled,
+        const QString& browser,
+        const QString& profile) {
+    if (!commandPolicy(provider).allowBrowserCookies || !enabled || browser.isEmpty()) {
+        return {};
+    }
+    auto selector = browser;
+    if (!profile.isEmpty()) {
+        selector += QChar(':') + profile;
+    }
+    return {QStringLiteral("--cookies-from-browser"), selector};
+}
+
 QString ReleasesService::helperPath() const {
     const auto configured = m_pConfig->getValueString(prefs::kHelperPathConfigKey);
     if (!configured.isEmpty()) {
@@ -120,22 +247,15 @@ QString ReleasesService::helperPath() const {
     return QStandardPaths::findExecutable(QStringLiteral("yt-dlp"));
 }
 
-QStringList ReleasesService::cookieArguments() const {
-    if (!m_pConfig->getValue(prefs::kUseBrowserCookiesConfigKey, false)) {
-        return {};
-    }
+QStringList ReleasesService::configuredCookieArguments() const {
     const auto browser = m_pConfig->getValue(
             prefs::kCookieBrowserConfigKey,
             QStringLiteral("chrome"));
-    if (browser.isEmpty()) {
-        return {};
-    }
-    auto selector = browser;
     const auto profile = m_pConfig->getValueString(prefs::kCookieProfileConfigKey);
-    if (!profile.isEmpty()) {
-        selector += QStringLiteral(":") + profile;
-    }
-    return {QStringLiteral("--cookies-from-browser"), selector};
+    return browserCookieArguments(m_provider,
+            m_pConfig->getValue(prefs::kUseBrowserCookiesConfigKey, false),
+            browser,
+            profile);
 }
 
 void ReleasesService::search(const QString& query, bool musicOnly) {
@@ -150,10 +270,7 @@ void ReleasesService::search(const QString& query, bool musicOnly) {
         return;
     }
 
-    const auto searchTerms = musicOnly
-            ? query + QStringLiteral(" music")
-            : query;
-    const auto input = QStringLiteral("ytsearch%1:%2").arg(kSearchLimit).arg(searchTerms);
+    const auto input = searchInput(m_provider, query, musicOnly);
 
     m_operation = Operation::Search;
     m_processOutput.clear();
@@ -165,7 +282,7 @@ void ReleasesService::search(const QString& query, bool musicOnly) {
             QStringLiteral("--playlist-end"),
             QString::number(kSearchLimit),
             QStringLiteral("--skip-download")};
-    arguments.append(cookieArguments());
+    arguments.append(configuredCookieArguments());
     arguments.append(input);
     emit searchStarted();
     m_process.start(helper, arguments);
@@ -175,7 +292,9 @@ void ReleasesService::search(const QString& query, bool musicOnly) {
     }
 }
 
-QList<ReleaseSearchResult> ReleasesService::parseSearchJson(const QByteArray& data) {
+QList<ReleaseSearchResult> ReleasesService::parseSearchJson(
+        const QByteArray& data,
+        ReleaseProvider provider) {
     QList<ReleaseSearchResult> results;
     const auto document = QJsonDocument::fromJson(data);
     if (!document.isObject()) {
@@ -188,22 +307,45 @@ QList<ReleaseSearchResult> ReleasesService::parseSearchJson(const QByteArray& da
         const auto object = value.toObject();
         ReleaseSearchResult result;
         const auto extractor = firstString(object, {"extractor_key", "ie_key", "extractor"});
-        const auto id = object.value(QStringLiteral("id")).toString();
+        const auto idValue = object.value(QStringLiteral("id"));
+        const auto id = idValue.isString()
+                ? idValue.toString()
+                : idValue.isDouble()
+                ? QString::number(idValue.toInteger())
+                : QString();
         if (id.isEmpty()) {
             continue;
         }
-        result.key = (extractor.isEmpty() ? QStringLiteral("youtube") : extractor) +
-                QStringLiteral("-") + id;
         result.title = firstString(object, {"title", "fulltitle"});
-        result.uploader = firstString(object, {"uploader", "channel"});
-        result.webpageUrl = firstString(object, {"webpage_url", "original_url", "url"});
-        const QUrl resultUrl(result.webpageUrl);
-        if (result.webpageUrl.isEmpty() || resultUrl.scheme().isEmpty()) {
-            result.webpageUrl = QStringLiteral("https://www.youtube.com/watch?v=") + id;
-        }
-        result.thumbnailUrl = QStringLiteral("https://i.ytimg.com/vi/%1/mqdefault.jpg").arg(id);
-        if (extractor.compare(QStringLiteral("Youtube"), Qt::CaseInsensitive) != 0) {
-            result.thumbnailUrl = thumbnailUrl(object);
+        result.provider = provider;
+        if (provider == ReleaseProvider::SoundCloud) {
+            if (extractor.compare(QStringLiteral("Soundcloud"), Qt::CaseInsensitive) != 0) {
+                continue;
+            }
+            result.uploader = firstString(
+                    object, {"uploader", "channel", "artist", "creator"});
+            result.album = firstString(object, {"album", "album_title"});
+            result.webpageUrl = soundCloudWebpageUrl(object);
+            if (result.webpageUrl.isEmpty()) {
+                continue;
+            }
+            result.key = QStringLiteral("soundcloud-") + id.toLower();
+            result.thumbnailUrl = largestThumbnailUrl(object);
+        } else {
+            result.uploader = firstString(object, {"uploader", "channel"});
+            result.key = (extractor.isEmpty() ? QStringLiteral("youtube") : extractor) +
+                    QStringLiteral("-") + id;
+            result.webpageUrl =
+                    firstString(object, {"webpage_url", "original_url", "url"});
+            const QUrl resultUrl(result.webpageUrl);
+            if (result.webpageUrl.isEmpty() || resultUrl.scheme().isEmpty()) {
+                result.webpageUrl = QStringLiteral("https://www.youtube.com/watch?v=") + id;
+            }
+            result.thumbnailUrl =
+                    QStringLiteral("https://i.ytimg.com/vi/%1/mqdefault.jpg").arg(id);
+            if (extractor.compare(QStringLiteral("Youtube"), Qt::CaseInsensitive) != 0) {
+                result.thumbnailUrl = lastThumbnailUrl(object);
+            }
         }
         result.durationSeconds = object.value(QStringLiteral("duration")).toInteger();
         results.append(result);
@@ -254,7 +396,7 @@ void ReleasesService::slotSearchFinished(int exitCode, QProcess::ExitStatus stat
     }
     const auto data = m_processOutput + m_process.readAllStandardOutput();
     const auto errorOutput = m_processErrorOutput + m_process.readAllStandardError();
-    const auto results = parseSearchJson(data);
+    const auto results = parseSearchJson(data, m_provider);
     resetProcess();
     if (results.isEmpty() && (status != QProcess::NormalExit || exitCode != 0)) {
         const auto detail = searchErrorDetail(errorOutput);
@@ -272,9 +414,8 @@ bool ReleasesService::ensureDownloadDirectory(QString* path) {
             : prefs::kDownloadDirectoryConfigKey;
     auto directory = m_pConfig->getValueString(directoryKey);
     if (directory.isEmpty()) {
-        const auto defaultDirectoryName = m_provider == ReleaseProvider::Bandcamp
-                ? QStringLiteral("Releases Camp")
-                : QStringLiteral("Releases");
+        const auto defaultDirectoryName =
+                commandPolicy(m_provider).defaultDownloadDirectoryName;
         directory = QStandardPaths::writableLocation(QStandardPaths::MusicLocation) +
                 QStringLiteral("/Mixxx/") + defaultDirectoryName;
         if (directory.startsWith(QStringLiteral("/Mixxx"))) {
@@ -343,6 +484,7 @@ void ReleasesService::startDownload(const PendingLoad& request) {
     m_activeMediaPath.clear();
     emit resultUpdated(request.result.key, 0, tr("Queued"));
 
+    const auto policy = commandPolicy(m_provider);
     QStringList arguments{QStringLiteral("--ignore-config"),
             QStringLiteral("--no-warnings"),
             QStringLiteral("--encoding"),
@@ -350,7 +492,7 @@ void ReleasesService::startDownload(const PendingLoad& request) {
             QStringLiteral("--no-playlist"),
             QStringLiteral("--no-overwrites"),
             QStringLiteral("--format"),
-            QStringLiteral("bestaudio/best"),
+            policy.downloadFormatSelector,
             QStringLiteral("--paths"),
             directory,
             QStringLiteral("--output"),
@@ -363,12 +505,12 @@ void ReleasesService::startDownload(const PendingLoad& request) {
                            "%(progress.total_bytes_estimate)s"),
             QStringLiteral("--print"),
             QStringLiteral("after_move:RELEASES_COMPLETE\t%(id)s\t%(filepath)s")};
-    if (m_provider == ReleaseProvider::YouTube) {
+    if (!policy.downloadExtractorArguments.isEmpty()) {
         const auto formatIndex = arguments.indexOf(QStringLiteral("--format"));
         arguments.insert(formatIndex, QStringLiteral("--extractor-args"));
-        arguments.insert(formatIndex + 1, QStringLiteral("youtube:player_client=android"));
+        arguments.insert(formatIndex + 1, policy.downloadExtractorArguments);
     }
-    arguments.append(cookieArguments());
+    arguments.append(configuredCookieArguments());
     arguments.append(request.result.webpageUrl);
     m_process.start(helper, arguments);
     if (!m_process.waitForStarted(2000)) {

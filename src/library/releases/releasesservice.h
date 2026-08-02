@@ -16,6 +16,16 @@ namespace mixxx::library::releases {
 enum class ReleaseProvider {
     YouTube,
     Bandcamp,
+    SoundCloud,
+};
+
+struct ReleaseCommandPolicy {
+    QString searchPrefix;
+    QString downloadFormatSelector;
+    QString downloadExtractorArguments;
+    QString defaultDownloadDirectoryName;
+    bool appendMusicKeyword{true};
+    bool allowBrowserCookies{true};
 };
 
 struct ReleaseSearchResult {
@@ -54,7 +64,21 @@ class ReleasesService final : public QObject {
     QString thumbnailPath(const QString& key) const;
     bool cacheThumbnail(const QString& key, const QImage& image);
 
-    static QList<ReleaseSearchResult> parseSearchJson(const QByteArray& data);
+    ReleaseProvider provider() const {
+        return m_provider;
+    }
+
+    static ReleaseCommandPolicy commandPolicy(ReleaseProvider provider);
+    static QString searchInput(ReleaseProvider provider,
+            const QString& query,
+            bool musicOnly);
+    static QStringList browserCookieArguments(ReleaseProvider provider,
+            bool enabled,
+            const QString& browser,
+            const QString& profile = {});
+    static QList<ReleaseSearchResult> parseSearchJson(
+            const QByteArray& data,
+            ReleaseProvider provider = ReleaseProvider::YouTube);
     static int progressPercent(qint64 downloaded, qint64 total);
 
   signals:
@@ -83,7 +107,7 @@ class ReleasesService final : public QObject {
     };
 
     QString helperPath() const;
-    QStringList cookieArguments() const;
+    QStringList configuredCookieArguments() const;
     bool ensureDownloadDirectory(QString* path);
     void startNextDownload();
     void startDownload(const PendingLoad& request);
