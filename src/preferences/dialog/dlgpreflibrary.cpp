@@ -317,6 +317,7 @@ void DlgPrefLibrary::slotResetToDefaults() {
     checkBox_show_rekordbox->setChecked(true);
     m_pReleasesDirectoryEdit->clear();
     m_pBandcampDirectoryEdit->clear();
+    m_pSoundCloudDirectoryEdit->clear();
     m_pReleasesHelperEdit->clear();
     m_pReleasesCookiesCheck->setChecked(false);
     m_pReleasesBrowserCombo->setCurrentIndex(
@@ -330,6 +331,8 @@ void DlgPrefLibrary::slotUpdate() {
             release_prefs::kDownloadDirectoryConfigKey, QString()));
     m_pBandcampDirectoryEdit->setText(m_pConfig->getValue(
             release_prefs::kBandcampDownloadDirectoryConfigKey, QString()));
+    m_pSoundCloudDirectoryEdit->setText(m_pConfig->getValue(
+            release_prefs::kSoundCloudDownloadDirectoryConfigKey, QString()));
     m_pReleasesHelperEdit->setText(m_pConfig->getValue(
             release_prefs::kHelperPathConfigKey, QString()));
     m_pReleasesCookiesCheck->setChecked(m_pConfig->getValue(
@@ -649,6 +652,8 @@ void DlgPrefLibrary::slotApply() {
             ConfigValue(m_pReleasesDirectoryEdit->text().trimmed()));
     m_pConfig->set(release_prefs::kBandcampDownloadDirectoryConfigKey,
             ConfigValue(m_pBandcampDirectoryEdit->text().trimmed()));
+    m_pConfig->set(release_prefs::kSoundCloudDownloadDirectoryConfigKey,
+            ConfigValue(m_pSoundCloudDirectoryEdit->text().trimmed()));
     m_pConfig->set(release_prefs::kHelperPathConfigKey,
             ConfigValue(m_pReleasesHelperEdit->text().trimmed()));
     m_pConfig->set(release_prefs::kUseBrowserCookiesConfigKey,
@@ -748,13 +753,18 @@ void DlgPrefLibrary::createReleasesControls() {
     layout->addWidget(new QLabel(tr("Bandcamp download directory:"), group), 1, 0);
     layout->addWidget(m_pBandcampDirectoryEdit, 1, 1);
     layout->addWidget(bandcampDirectoryButton, 1, 2);
+    m_pSoundCloudDirectoryEdit = new QLineEdit(group);
+    auto* soundCloudDirectoryButton = new QPushButton(tr("Browse"), group);
+    layout->addWidget(new QLabel(tr("SoundCloud download directory:"), group), 2, 0);
+    layout->addWidget(m_pSoundCloudDirectoryEdit, 2, 1);
+    layout->addWidget(soundCloudDirectoryButton, 2, 2);
     m_pReleasesHelperEdit = new QLineEdit(group);
     auto* helperButton = new QPushButton(tr("Browse"), group);
-    layout->addWidget(new QLabel(tr("Helper executable:"), group), 2, 0);
-    layout->addWidget(m_pReleasesHelperEdit, 2, 1);
-    layout->addWidget(helperButton, 2, 2);
+    layout->addWidget(new QLabel(tr("Helper executable:"), group), 3, 0);
+    layout->addWidget(m_pReleasesHelperEdit, 3, 1);
+    layout->addWidget(helperButton, 3, 2);
     m_pReleasesCookiesCheck = new QCheckBox(tr("Use browser cookies"), group);
-    layout->addWidget(m_pReleasesCookiesCheck, 3, 0, 1, 3);
+    layout->addWidget(m_pReleasesCookiesCheck, 4, 0, 1, 3);
     m_pReleasesBrowserCombo = new QComboBox(group);
     const QStringList browsers{QStringLiteral("brave"),
             QStringLiteral("chrome"),
@@ -768,10 +778,10 @@ void DlgPrefLibrary::createReleasesControls() {
         m_pReleasesBrowserCombo->addItem(browser, browser);
     }
     m_pReleasesProfileEdit = new QLineEdit(group);
-    layout->addWidget(new QLabel(tr("Browser:"), group), 4, 0);
-    layout->addWidget(m_pReleasesBrowserCombo, 4, 1);
-    layout->addWidget(new QLabel(tr("Profile:"), group), 5, 0);
-    layout->addWidget(m_pReleasesProfileEdit, 5, 1, 1, 2);
+    layout->addWidget(new QLabel(tr("Browser:"), group), 5, 0);
+    layout->addWidget(m_pReleasesBrowserCombo, 5, 1);
+    layout->addWidget(new QLabel(tr("Profile:"), group), 6, 0);
+    layout->addWidget(m_pReleasesProfileEdit, 6, 1, 1, 2);
     verticalLayout->insertWidget(0, group);
 
     connect(directoryButton, &QPushButton::clicked, this, [this] {
@@ -793,6 +803,14 @@ void DlgPrefLibrary::createReleasesControls() {
                 this, tr("Select Bandcamp download directory"), m_pBandcampDirectoryEdit->text());
         if (!directory.isEmpty()) {
             m_pBandcampDirectoryEdit->setText(directory);
+        }
+    });
+    connect(soundCloudDirectoryButton, &QPushButton::clicked, this, [this] {
+        const auto directory = QFileDialog::getExistingDirectory(this,
+                tr("Select SoundCloud download directory"),
+                m_pSoundCloudDirectoryEdit->text());
+        if (!directory.isEmpty()) {
+            m_pSoundCloudDirectoryEdit->setText(directory);
         }
     });
     const auto updateEnabled = [this] {

@@ -23,6 +23,7 @@
 #include "library/rekordbox/rekordboxfeature.h"
 #include "library/releases/releasesfeature.h"
 #include "library/releasescamp/bandcampfeature.h"
+#include "library/releasessc/soundcloudfeature.h"
 #include "library/rhythmbox/rhythmboxfeature.h"
 #include "library/serato/seratofeature.h"
 #include "library/sidebarmodel.h"
@@ -151,6 +152,8 @@ Library::Library(
     addFeature(new mixxx::library::releases::ReleasesFeature(
             this, m_pConfig, m_pTrackCollectionManager));
     addFeature(new mixxx::library::releasescamp::BandcampFeature(
+            this, m_pConfig, m_pTrackCollectionManager));
+    addFeature(new mixxx::library::releasessc::SoundCloudFeature(
             this, m_pConfig, m_pTrackCollectionManager));
 
     addFeature(new SetlogFeature(this, UserSettingsPointer(m_pConfig)));

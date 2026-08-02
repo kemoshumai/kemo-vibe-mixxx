@@ -1465,6 +1465,7 @@ add_library(
   src/library/releasescamp/bandcampfeature.cpp
   src/library/releasescamp/bandcampservice.cpp
   src/library/releasescamp/bandcampview.cpp
+  src/library/releasessc/soundcloudfeature.cpp
   src/library/rekordbox/rekordboxfeature.cpp
   src/library/rhythmbox/rhythmboxfeature.cpp
   src/library/scanner/importfilestask.cpp

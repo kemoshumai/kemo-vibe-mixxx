@@ -1,5 +1,6 @@
 #include <gtest/gtest.h>
 
+#include <QCheckBox>
 #include <QKeyEvent>
 #include <QLineEdit>
 #include <QTableView>
@@ -27,10 +28,11 @@ QList<ReleaseSearchResult> makeResults(int count) {
 class ReleasesViewTest : public MixxxTest {
   protected:
     struct TestView {
-        explicit TestView(UserSettingsPointer config)
+        explicit TestView(UserSettingsPointer config,
+                ReleaseProvider provider = ReleaseProvider::YouTube)
                 : window(),
                   config(std::move(config)),
-                  service(&window, this->config, nullptr),
+                  service(&window, this->config, nullptr, provider),
                   view(&window, this->config, &service, nullptr) {
             window.show();
             view.show();
@@ -91,6 +93,26 @@ TEST_F(ReleasesViewTest, ControllerNavigationKeepsSearchFocus) {
 
     QTest::keyClicks(searchEdit, QStringLiteral("query"));
     EXPECT_EQ(QStringLiteral("query"), searchEdit->text());
+}
+
+TEST_F(ReleasesViewTest, MusicOnlyIsHiddenOnlyForSoundCloud) {
+    TestView youtubeView(config(), ReleaseProvider::YouTube);
+    TestView bandcampView(config(), ReleaseProvider::Bandcamp);
+    TestView soundCloudView(config(), ReleaseProvider::SoundCloud);
+
+    auto* youtubeCheckBox = youtubeView.view.findChild<QCheckBox*>(
+            QStringLiteral("ReleasesMusicOnlyCheckBox"));
+    auto* bandcampCheckBox = bandcampView.view.findChild<QCheckBox*>(
+            QStringLiteral("ReleasesMusicOnlyCheckBox"));
+    auto* soundCloudCheckBox = soundCloudView.view.findChild<QCheckBox*>(
+            QStringLiteral("ReleasesMusicOnlyCheckBox"));
+    ASSERT_NE(nullptr, youtubeCheckBox);
+    ASSERT_NE(nullptr, bandcampCheckBox);
+    ASSERT_NE(nullptr, soundCloudCheckBox);
+
+    EXPECT_FALSE(youtubeCheckBox->isHidden());
+    EXPECT_FALSE(bandcampCheckBox->isHidden());
+    EXPECT_TRUE(soundCloudCheckBox->isHidden());
 }
 
 } // namespace mixxx::library::releases
